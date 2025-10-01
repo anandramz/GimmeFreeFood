@@ -1,14 +1,19 @@
 # pip install playwright
 # playwright install chromium
 from playwright.sync_api import sync_playwright
-
+from dateutil import parser
+from dateutil import parser
+from datetime import date
+from datetime import datetime, timedelta
+# Basically we are taking a look at the events page for tomorrow for freed food, cle credit and free stuff
 URL = "https://heellife.unc.edu/events?perks=Credit&perks=FreeFood&perks=Merchandise&shortcutdate=tomorrow"
+
 BASE = "https://heellife.unc.edu"
 
 ICON_MAP = {
     "credit.svg": "Credit",
-    "freefood.svg": "FreeFood",
-    "merchandise.svg": "Merchandise",
+    "free_food.svg": "FreeFood",
+    "free_stuff.svg": "Merchandise",
 }
 
 def extract_perks_on_event(page):
@@ -63,9 +68,12 @@ with sync_playwright() as p:
     n = cards.count()
 
     # We’ll collect the shallow fields first, then enrich with perks
+    titles_visited = set()
     for i in range(n):
         a = cards.nth(i)
         href = a.get_attribute("href")
+        if href is None:
+            continue
         url = BASE + href if href else None
 
         title_el = a.locator("h3")
@@ -82,14 +90,23 @@ with sync_playwright() as p:
             end = bg_style.find('")', start)
             if start > 4 and end > start:
                 image = bg_style[start:end]
+        try:
+            event_dt = parser.parse(when)
+        except Exception:
+            event_dt = None
+        if (title, when, where) in titles_visited:
+            continue
+        titles_visited.add((title, when, where))
+        if event_dt and event_dt.date() == (datetime.now() + timedelta(days=1)).date():
+            events.append({
+                "title": title,
+                "datetime": when,
+                "location": where,
+                "url": url,
+                "image": image,
+            })
+    
 
-        events.append({
-            "title": title,
-            "datetime": when,
-            "location": where,
-            "url": url,
-            "image": image,
-        })
 
     # Visit each event page to extract perks
     for e in events:
