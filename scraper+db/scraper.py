@@ -2,9 +2,21 @@
 # playwright install chromium
 from playwright.sync_api import sync_playwright
 from dateutil import parser
-from dateutil import parser
-from datetime import date
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+from pathlib import Path
+from dotenv import load_dotenv
+import os
+from supabase import create_client, Client
+import json
+from pathlib import Path
+
+
+env_path = Path('/Users/anandramaswamy/gimme_free_food/.env')
+load_dotenv(dotenv_path=env_path)
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
 # Basically we are taking a look at the events page for tomorrow for freed food, cle credit and free stuff
 URL = "https://heellife.unc.edu/events?perks=Credit&perks=FreeFood&perks=Merchandise&shortcutdate=tomorrow"
 
@@ -15,6 +27,17 @@ ICON_MAP = {
     "free_food.svg": "FreeFood",
     "free_stuff.svg": "Merchandise",
 }
+
+
+CAMPUS_TZ = ZoneInfo("America/New_York")
+
+def to_utc_iso(s: str) -> str:
+    dt = parser.parse(s)
+    # assume campus tz if time is naive
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=CAMPUS_TZ)
+    return dt.astimezone(timezone.utc).isoformat()
+
 
 def extract_perks_on_event(page):
     """Return a list of perk strings from the event detail page."""
@@ -121,12 +144,29 @@ with sync_playwright() as p:
             e["perks"] = []
 
     browser.close()
-
-# Print nicely (link + perks)
+rows = []
 for e in events:
-    perks_display = ", ".join(e.get("perks", [])) if e.get("perks") else "None"
-    print(f"{e['title']} — {e['datetime']} @ {e['location']} | {e['url']}")
-    print(f"Perks: {perks_display}")
-    if e['image']:
-        print(f"Image: {e['image']}")
-    print("-" * 60)
+    title = (e["title"] or "").strip()
+    loc   = (e.get("location") or "").strip()
+    when  = (e["datetime"] or "").strip()
+    if not (title and loc and when):
+        # skip incomplete rows to avoid PK violation
+        continue
+
+    rows.append({
+        "title": title,
+        "date_time": to_utc_iso(when),
+        "location": loc,
+        "url": e["url"],
+        "image_url": e.get("image"),
+        "perks": ", ".join(e.get("perks", [])) or None,
+    })
+output_path = Path(__file__).resolve().parent / "events_export.json"
+
+with open(output_path, "w", encoding="utf-8") as f:
+    json.dump(rows, f, ensure_ascii=False, indent=2)
+
+print(f"✅ Exported {len(rows)} events to {output_path}")
+
+
+supabase.table("events").upsert(rows, on_conflict="title,date_time,location").execute()

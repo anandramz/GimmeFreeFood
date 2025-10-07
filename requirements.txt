@@ -1,4 +1,3 @@
-requests
-feedparser
-python-dateutil
-bash
+playwright==1.47.0
+python-dateutil==2.9.0.post0
+requests==2.32.3
