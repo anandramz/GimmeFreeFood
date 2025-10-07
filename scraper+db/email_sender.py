@@ -9,7 +9,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")          
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 FROM_EMAIL = "Acme <onboarding@resend.dev>" 
-TO_EMAILS = ["aramaswamy23@gmail.com"]       
+TO_EMAILS = [""]      # I took out my email for privacy
 
 print(RESEND_API_KEY)
 resend.api_key = RESEND_API_KEY
